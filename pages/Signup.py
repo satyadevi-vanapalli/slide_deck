@@ -83,11 +83,10 @@ def main():
                                                 # conn.query(insert_stmt, data)
                                                     # cu.execute(insert_stmt, data)
                                                     # s.commit()
-                                                conn = st.connection('mysql', type='sql')
+                                                conn1 = st.connection('mysql', type='sql')
 
-                                                with conn.session as s:
+                                                with conn1.session as s:
                                                     a = 'INSERT INTO users (username, email, password) VALUES ("{username}","{email}","{password}");'.format(username=username, email=email, password=hashed_password[0])
-                                                    st.write(a)
                                                     s.execute(
                                                         text(a)
                                                     )
