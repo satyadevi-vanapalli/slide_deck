@@ -52,13 +52,12 @@ def get_data_period(period, username):
         for row in df.itertuples():
             # st.write(row.id)
             userId = row.id
-        sql = "SELECT * FROM savings WHERE user_id = '{userId}' and month_year = '{period}';".format(userId=userId,period=period)
+        sql = "SELECT * FROM savings WHERE user_id = {userId} and month_year = '{period}';".format(userId=userId,period=period)
         data = conn.query(sql, ttl=600)
         dataInfo = {}
         if not data.empty: 
             for se in data.to_dict():
                 dataInfo[se] = data.to_dict()[se][0]
-                st.write(dataInfo)
             return dataInfo
     except Exception as e:
         st.error(e) 
@@ -73,7 +72,7 @@ def insert_period(period, incomes, expenses, comment, email,type, id):
             if (type == 'new'):
                 conn1 = st.connection('mysql', type='sql')
                 query = "INSERT INTO savings(salary, other_income, rent, groceries, other_expenses, savings, month_year, user_id, comments)" "VALUES ({salary},{other_income}, {rent}, {groceries}, {other_expenses}, {savings}, '{month_year}', {user_id}, '{comments}');".format(salary=incomes['Salary'],other_income=incomes['Other Income'],rent=expenses['Rent'],groceries=expenses['Groceries'],other_expenses=expenses['Other Expenses'],savings=expenses['Savings'],month_year=period,user_id=userId,comments=comment)
-                st.write(query)
+                # st.write(query)
                 with conn1.session as s:
                     s.execute(
                         text(query)
@@ -164,8 +163,8 @@ def change_name(name):
 def dataVisualization():
     Income = ['Salary', 'Other Income']
     amount = [4500, 2500]
-    colors=['green', 'rosybrown', 'black', 'yellow']
-
+    colors=['blue', 'rosybrown', 'green', 'yellow']
+    income_colors = ['#F8532F',' #ff99ff']
     cols = st.columns([1, 1],gap='large')
 
     data = get_data_period(str(year) + "_" + str(month), email)
@@ -178,7 +177,7 @@ def dataVisualization():
             # st.write(incomeLables, incomeValues)
             fig = px.pie(values=incomeValues, names=incomeLables,
                         title= 'Income Chart',
-                        height=500, width=600,color_discrete_sequence=colors)
+                        height=500, width=600,color_discrete_sequence=income_colors)
             fig.update_layout(margin=dict(l=20, r=20, t=30, b=20),font=dict(color='red', size=15))
             st.plotly_chart(fig, use_container_width=True)
         with cols[1]:
