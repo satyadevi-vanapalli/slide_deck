@@ -52,16 +52,25 @@ def get_usernames():
     return usernames
 def main():
     try:
-        with st.form('signup'):
-            st.subheader('Sign Up')
-            email = st.text_input('Email', placeholder='Enter Your Email')
-            username = st.text_input('Username', placeholder='Enter Your Username')
-            password1 = st.text_input('Password', placeholder='Enter Your Password', type='password')
-            password2 = st.text_input('Confirm Password', placeholder='Confirm Your Password', type='password')
+        signUpForm = st.empty()
+        with signUpForm.form('signup'):
+            
+            signUptext = st.empty()
+            emailText = st.empty()
+            usernameText = st.empty()
+            password1Text = st.empty()
+            password2Text = st.empty()
+            signUpbutton = st.empty()
+            signUptext.subheader('Sign Up')
+            email = emailText.text_input('Email', placeholder='Enter Your Email')
+            username = usernameText.text_input('Username', placeholder='Enter Your Username')
+            password1 = password1Text.text_input('Password', placeholder='Enter Your Password', type='password')
+            password2 = password2Text.text_input('Confirm Password', placeholder='Confirm Your Password', type='password')
             # btn1= st.columns(1)
             # showError = False
             # with btn1:
-            if st.form_submit_button('Sign Up'):
+            accountCreated = False
+            if signUpbutton.form_submit_button('Sign Up'):
                 # st.write("LL")
                 if email:
                     if validate_email(email):
@@ -91,8 +100,34 @@ def main():
                                                         text(a)
                                                     )
                                                     s.commit()
-                                                st.success('Account created successfully!!')
-                                                st.balloons()
+                                                    accountCreated = True
+                                                with emailText.container():
+                                                    st.success('Account created successfully!!')
+                                                    st.balloons()
+                                                with usernameText.container():
+                                                    pass
+                                                with password1Text.container():
+                                                    pass
+                                                with password2Text.container():
+                                                    pass
+                                                with signUptext.container():
+                                                    pass
+                                                with signUpForm.container():
+                                                    pass
+                                                st.markdown("""
+    <style>
+
+        .st-emotion-cache-u9xbm8 {
+                                                            visibility:hidden;
+                                                            height:0px !important
+        }
+                                                            .st-emotion-cache-17ypgft {
+                                                            height:10px !important;
+                                                            }
+
+
+    </style>""", unsafe_allow_html=True)
+                                                st.write('<a href="/" target="_self" style="color:white;margin-left:35%">Please click here to login</a>', unsafe_allow_html=True)
                                             else:
                                                 st.warning('Passwords Do Not Match')
                                         else:
@@ -111,8 +146,8 @@ def main():
                 else:
                     # showError = True
                     st.warning("Please add all details")
-
-            st.write('<a href="/" target="_self" style="color:white">Already have account?</a>', unsafe_allow_html=True)
+            if not accountCreated:
+                st.write('<a href="/" target="_self" style="color:white">Already have account?</a>', unsafe_allow_html=True)
     except Exception as e:
         st.write(e)
 
