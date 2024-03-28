@@ -1,7 +1,7 @@
 import smtplib
 import streamlit as st
 
-from dependancies import updatePassword
+# from dependancies import updatePassword
 
 import string
 import random
@@ -10,7 +10,27 @@ import re
 import html
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from sqlalchemy.sql import text
+import streamlit_authenticator as stauth
 
+
+
+def updatePassword(email,password):
+    #print(email,"EEEEEEEEEEEEEEEEEEEEEEEEEEe")
+    try:
+        newPassword = stauth.Hasher([password]).generate()
+        sql = "UPDATE users SET password = '{password}' WHERE email = '{email}';".format(password=newPassword[0],email=email)
+        conn1 = st.connection('mysql', type='sql')
+        with conn1.session as s:
+            s.execute(
+                text(sql)
+            )
+            s.commit()
+            # st.sidebar.success("Password updated successfully!")
+
+        return True
+    except Exception as e:
+        st.error(e)
 def convert_to_html_safe(text):
     return html.escape(text)
 
@@ -74,7 +94,7 @@ if forgot_password_form.form_submit_button('Submit' if 'Submit' not in fields el
             part2 = MIMEText(html, "html")
             message.attach(part2)
             send = server.sendmail('streamlitsatya@gmail.com',email,message.as_string())
-            st.success("Password send to your email account. Please verify")
+            st.success("Password sent to your email account. Please verify")
 
 
     else:
