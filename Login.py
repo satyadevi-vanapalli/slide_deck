@@ -2,7 +2,7 @@ import bcrypt
 import streamlit as st
 import streamlit_authenticator as stauth
 # from dependancies import sign_up, fetch_users
-from dependancies import fetch_users, sign_up, insert_period, get_data_period, updatePassword
+# from dependancies import sign_up, insert_period, get_data_period, updatePassword
 
 import calendar  # Core Python Module
 from datetime import datetime  # Core Python Module
@@ -30,46 +30,9 @@ currency = "Rupees"
 page_title = "Income and Expense Tracker"
 page_icon = ":money_with_wings:"  # emojis: https://www.webfx.com/tools/emoji-cheat-sheet/
 layout = "centered"
-# # --------------------------------------
-# st.set_page_config(page_title=page_title, page_icon=page_icon, layout=layout)
-# conn = st.connection('mysql', type='sql', autocommit=True)
-# st.write(conn,"+++++++++++++++++++++++=")
+years = [datetime.today().year - 1, datetime.today().year, datetime.today().year + 1,datetime.today().year + 2]
+months = tuple(calendar.month_name[1:])
 
-# conn = st.connection('mysql', type='sql')
-
-# df = conn.query('SELECT * from users1;', ttl=600)
-# st.write(df,"dddddddddd", df.to_dict(),"LLLLLLLLLLLLLLLLLLLLLL")
-conn = st.connection('mysql', type='sql')
-with conn.session as s:
-    # s.execute('CREATE TABLE IF NOT EXISTS pet_owners (person TEXT, pet TEXT);')
-    # s.execute('DELETE FROM pet_owners;')
-    pet_owners = {'jerry': 'fish', 'barbara': 'cat', 'alex': 'puppy'}
-    for k in pet_owners:
-        a = 'INSERT INTO details (name) VALUES ("{fname}");'.format(fname=k)
-
-        s.execute(
-            text(a)
-        )
-        s.commit()
-        st.write("success", a)
-# conn1.query("INSERT INTO details (name) VALUES ('satya1')")
-# st.write("inserted")
-# # --- DROP DOWN VALUES FOR SELECTING THE PERIOD ---
-# years = [datetime.today().year, datetime.today().year + 1]
-# months = tuple(calendar.month_name[1:])
-# with open('data.json', 'r') as file:
-#     data = json.load(file)
-
-# st.markdown("""
-#     <style>
-#         .st-emotion-cache-1qqhz9z {
-#             padding-top:1rem !important;
-#         }
-
-#     </style>""", unsafe_allow_html=True)
-
-
-# --- HIDE STREAMLIT STYLE ---
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -78,9 +41,77 @@ hide_st_style = """
             </style>
             """
 st.markdown(hide_st_style, unsafe_allow_html=True)
+conn = st.connection('mysql', type='sql')
 
 # Replace the chart with several elements:
+def get_data_period(period, username):
+    try:
+        a = 'SELECT * FROM users WHERE email = "{email}";'.format(email=username)
+        df = conn.query(a, ttl=600)
+        userId = None
+        for row in df.itertuples():
+            # st.write(row.id)
+            userId = row.id
+        sql = "SELECT * FROM savings WHERE user_id = '{userId}' and month_year = '{period}';".format(userId=userId,period=period)
+        data = conn.query(sql, ttl=600)
+        dataInfo = {}
+        if not data.empty: 
+            for se in data.to_dict():
+                dataInfo[se] = data.to_dict()[se][0]
+                st.write(dataInfo)
+            return dataInfo
+    except Exception as e:
+        st.error(e) 
+def insert_period(period, incomes, expenses, comment, email,type, id):
+    try:
+        a = 'SELECT * FROM users WHERE email = "{email}";'.format(email=email)
+        df = conn.query(a, ttl=600)
+        userId = None
+        for row in df.itertuples():
+            userId = row.id
+        if userId:
+            if (type == 'new'):
+                conn1 = st.connection('mysql', type='sql')
+                query = "INSERT INTO savings(salary, other_income, rent, groceries, other_expenses, savings, month_year, user_id, comments)" "VALUES ({salary},{other_income}, {rent}, {groceries}, {other_expenses}, {savings}, '{month_year}', {user_id}, '{comments}');".format(salary=incomes['Salary'],other_income=incomes['Other Income'],rent=expenses['Rent'],groceries=expenses['Groceries'],other_expenses=expenses['Other Expenses'],savings=expenses['Savings'],month_year=period,user_id=userId,comments=comment)
+                st.write(query)
+                with conn1.session as s:
+                    s.execute(
+                        text(query)
+                    )
+                    s.commit()
+                    st.success("Data saved successfully!")
+            elif type == 'update':
+                print ("ddddddddddd")
+                sql = "UPDATE savings SET salary = {salary}, other_income = {other_income}, rent = {rent}, groceries = {groceries},  other_expenses = {other_expenses}, savings = {savings}, comments = '{comments}' WHERE id = {id};".format(salary=incomes['Salary'],other_income=incomes['Other Income'],rent=expenses['Rent'],groceries=expenses['Groceries'],other_expenses=expenses['Other Expenses'],savings=expenses['Savings'],id=userId,comments=comment)
+                conn1 = st.connection('mysql', type='sql')
+                with conn1.session as s:
+                    s.execute(
+                        text(sql)
+                    )
+                    s.commit()
+                    st.success("Data updated successfully!")
+               
+                return True
 
+    except Exception as e:
+        st.write(e)
+   
+def updatePassword(email,password):
+    #print(email,"EEEEEEEEEEEEEEEEEEEEEEEEEEe")
+    try:
+        newPassword = stauth.Hasher([password]).generate()
+        sql = "UPDATE users SET password = '{password}' WHERE email = '{email}';".format(password=newPassword[0],email=email)
+        conn1 = st.connection('mysql', type='sql')
+        with conn1.session as s:
+            s.execute(
+                text(sql)
+            )
+            s.commit()
+            # st.sidebar.success("Password updated successfully!")
+
+        return True
+    except Exception as e:
+        st.error(e)
 def resetPassowrd(userPwd, email):
     with st.sidebar.form('reset_password',clear_on_submit=False):
             st.subheader('Rest Password')
@@ -104,8 +135,8 @@ def resetPassowrd(userPwd, email):
                         update = updatePassword(email,new_password)
                         if update:
                             st.success("Password updated successfully")
-                            st.write(st.session_state.current_password)
-                            st.session_state.current_password = ''
+                            # st.write(st.session_state.current_password)
+                            # st.session_state.current_password = ''
                             # st.session_state['new_password'] = ''
                             # st.session_state['repeat_password'] = ''
                     else:
@@ -159,13 +190,12 @@ def dataVisualization():
                         height=500, width=600,color_discrete_sequence=colors)
             fig1.update_layout(margin=dict(l=20, r=20, t=30, b=20),font=dict(color='red', size=15))
             st.plotly_chart(fig1, use_container_width=True)
-
+def fetch_users():
+    df = conn.query('SELECT * from users;', ttl=600)
+    return df
 try:
     
-    # st.sidebar.w(f'Welcome {email}')
-
     users = fetch_users()
-    ##print(users)
     emails = []
     usernames = []
     passwords = []
@@ -175,11 +205,12 @@ try:
     #     emails1.append(user[1])
     #     usernames1.append(user[2])
     #     passwords1.append(user[3])
-    for user in users:
-        # ##print(user)
-        emails.append(user['email'])
-        usernames.append(user['userName'])
-        passwords.append(user['password'])
+    for user in users.itertuples():
+    #     # ##print(user)
+        emails.append(user.email)
+        usernames.append(user.userName)
+        passwords.append(user.password)
+    # st.write(emails)
     ##print(emails,":::::::::::")
     ##print(usernames,"usernames")
 
@@ -190,7 +221,7 @@ try:
     credentials = {'usernames': {}}
     for index in range(len(emails)):
         credentials['usernames'][emails[index]] = {'name': usernames[index], 'password': passwords[index]}
-
+    # st.write(credentials)
     Authenticator = stauth.Authenticate(credentials, cookie_name='Streamlit', key='abcdef', cookie_expiry_days=4)
     username, authentication_status, email = Authenticator.login('main')
     if not authentication_status:
@@ -267,88 +298,97 @@ try:
                     
                         
                     st.header(f"Data Entry in {currency}")
-                    details = []
-                    # details = get_data_period(str(year) + "_" + str(month), email)
-                    # if details:
-                    #     details['Salary'] = details['salary']
-                    #     details['Other Income'] = details['other_income']
-                    #     details['other expenses'] = details['other_expenses']
-                    #     totalIncome = details['salary'] + details['other_income']
-                    #     totalExpenses = details['rent'] + details['groceries'] + details['other_expenses'] + details['savings']
-                    #     # st.write('Total Income: ', f"{totalIncome:,}", u'\u20B9')
-                    #     # st.write('Total Expenses: ', f"{totalExpenses:,}", u'\u20B9')
-                    #     # st.write('Balance: ', f"{(totalIncome - totalExpenses):,}", u'\u20B9')
-                    #     # st.write("Comments: ", details['comments'])
-                    #     totalIncomeText = st.empty()
-                    #     totalExpensesText = st.empty()
-                    #     balanceText = st.empty()
-                    #     commentText = st.empty()
-                    #     Incometext = 'Total Income: ' + f"{totalIncome:,}" + u'\u20B9'
-                    #     expensestext = 'Total Expenses: ' + f"{totalExpenses:,}" + u'\u20B9'
-                    #     commentT = "Comments: " + details['comments']
-                    #     balanceT = 'Balance: ' + f"{(totalIncome - totalExpenses):,}" + u'\u20B9'
-                    #     # Replace the placeholder with some text:
-                    #     totalIncomeText.write(Incometext)
-                    #     totalExpensesText.write(expensestext)
-                    #     balanceText.write(balanceT)
-                    #     commentText.write(commentT)
+                    # details = None
+                    details = pd.DataFrame()
 
-                    # with st.form("entry_form"):
-                    #     if details and len(details.keys()) > 0:
-                    #         with st.expander("Income", expanded=True):
-                    #             for income in incomes:
-                    #                 ##print(income)
-                    #                 st.number_input(f"{income}:", min_value=0, format="%i", step=10, key=income, value=details[income])
+                    details = get_data_period(str(year) + "_" + str(month), email)
+                    # st.write("**********************", type(details))
+                    # st.write(details.empty,">>>>",not details.empty,details)
+                    # st.write(details,"K???<<<",get_data_period(str(year) + "_" + str(month), email), type(details),details.all(), details.empty)
+                    # details = []
+                    # if details.empty:
+                    #     st.write("eeeeeeeeeeeeeeeeeee")
+                    # else:
+                    #     st.write("GGGGGGGGGGGGGGGGGGG")
+                    if details and len(details.keys()) > 0:
+                        details['Salary'] = details['salary']
+                        details['Other Income'] = details['other_income']
+                        details['other expenses'] = details['other_expenses']
+                        totalIncome = details['salary'] + details['other_income']
+                        totalExpenses = details['rent'] + details['groceries'] + details['other_expenses'] + details['savings']
+                        # st.write('Total Income: ', f"{totalIncome:,}", u'\u20B9')
+                        # st.write('Total Expenses: ', f"{totalExpenses:,}", u'\u20B9')
+                        # st.write('Balance: ', f"{(totalIncome - totalExpenses):,}", u'\u20B9')
+                        # st.write("Comments: ", details['comments'])
+                        totalIncomeText = st.empty()
+                        totalExpensesText = st.empty()
+                        balanceText = st.empty()
+                        commentText = st.empty()
+                        Incometext = 'Total Income: ' + f"{totalIncome:,}" + u'\u20B9'
+                        expensestext = 'Total Expenses: ' + f"{totalExpenses:,}" + u'\u20B9'
+                        commentT = "Comments: " + details['comments']
+                        balanceT = 'Balance: ' + f"{(totalIncome - totalExpenses):,}" + u'\u20B9'
+                        # Replace the placeholder with some text:
+                        totalIncomeText.write(Incometext)
+                        totalExpensesText.write(expensestext)
+                        balanceText.write(balanceT)
+                        commentText.write(commentT)
 
-                    #         with st.expander("Expenses", expanded=True):
-                    #             for expense in expenses:
-                    #                 st.number_input(f"{expense}:", min_value=0, format="%i", step=10, key=expense, value=details[expense.lower()])
-                    #         with st.expander("Comment", expanded=True):
-                    #             comment = st.text_area("",value=details['comments'], placeholder="Enter a comment here ...")
-                    #     else:
-                    #         with st.expander("Income"):
-                    #             for income in incomes:
-                    #                 st.number_input(f"{income}:", min_value=0, format="%i", step=10, key=income)
-                    #         with st.expander("Expenses"):
-                    #             for expense in expenses:
-                    #                 st.number_input(f"{expense}:", min_value=0, format="%i", step=10, key=expense)
-                    #         with st.expander("Comment"):
-                    #             comment = st.text_area("", placeholder="Enter a comment here ...")
+                    with st.form("entry_form"):
+                        if details and len(details.keys()) > 0:
+                            with st.expander("Income", expanded=True):
+                                for income in incomes:
+                                    ##print(income)
+                                    st.number_input(f"{income}:", min_value=0, format="%i", step=10, key=income, value=details[income])
 
-                    #     "---"
-                    #     submitted = False
-                    #     submitted = st.form_submit_button("Update Entry") if (details and len(details.keys()) > 0) else st.form_submit_button("Add Entry")
-                    #     if submitted:
-                    #         with st.spinner('Wait for it...'):
-                    #             st.write(st.session_state)
-                    #             period = str(year) + "_" + str(month)
-                    #             incomes = {income: st.session_state[income] for income in incomes}
-                    #             expenses = {expense: st.session_state[expense] for expense in expenses}
+                            with st.expander("Expenses", expanded=True):
+                                for expense in expenses:
+                                    st.number_input(f"{expense}:", min_value=0, format="%i", step=10, key=expense, value=details[expense.lower()])
+                            with st.expander("Comment", expanded=True):
+                                comment = st.text_area("",value=details['comments'], placeholder="Enter a comment here ...")
+                        else:
+                            with st.expander("Income"):
+                                for income in incomes:
+                                    st.number_input(f"{income}:", min_value=0, format="%i", step=10, key=income)
+                            with st.expander("Expenses"):
+                                for expense in expenses:
+                                    st.number_input(f"{expense}:", min_value=0, format="%i", step=10, key=expense)
+                            with st.expander("Comment"):
+                                comment = st.text_area("", placeholder="Enter a comment here ...")
 
-                    #             if details: 
-                    #                 updated = insert_period(period, incomes, expenses,comment, email, "update", details['id'])
-                    #                 if updated:
-                    #                     with totalIncomeText.container():
-                    #                         totalIncome = st.session_state['Salary'] + st.session_state['Other Income']
-                    #                         text = 'Total Income: ' + f"{totalIncome:,}" + u'\u20B9'
-                    #                         st.write(text)
-                    #                     with totalExpensesText.container():                                        
-                    #                         totalExpenses = st.session_state['Rent'] + st.session_state['Groceries'] + st.session_state['Other Expenses'] + st.session_state['Savings']
-                    #                         expensestext = 'Total Expenses: ' + f"{totalExpenses:,}" + u'\u20B9'
-                    #                         st.write(expensestext)
-                    #                     with balanceText.container():
-                    #                         balanceT = 'Balance: ' + f"{(totalIncome - totalExpenses):,}" + u'\u20B9'
-                    #                         st.write(balanceT)
-                    #                     with commentText.container():
-                    #                         st.write("Comments: ", comment)
+                        "---"
+                        submitted = False
+                        submitted = st.form_submit_button("Update Entry") if (details and len(details.keys()) > 0) else st.form_submit_button("Add Entry")
+                        if submitted:
+                            with st.spinner('Wait for it...'):
+                                # st.write(st.session_state)
+                                period = str(year) + "_" + str(month)
+                                incomes = {income: st.session_state[income] for income in incomes}
+                                expenses = {expense: st.session_state[expense] for expense in expenses}
+
+                                if details: 
+                                    updated = insert_period(period, incomes, expenses,comment, email, "update", details['id'])
+                                    if updated:
+                                        with totalIncomeText.container():
+                                            totalIncome = st.session_state['Salary'] + st.session_state['Other Income']
+                                            text = 'Total Income: ' + f"{totalIncome:,}" + u'\u20B9'
+                                            st.write(text)
+                                        with totalExpensesText.container():                                        
+                                            totalExpenses = st.session_state['Rent'] + st.session_state['Groceries'] + st.session_state['Other Expenses'] + st.session_state['Savings']
+                                            expensestext = 'Total Expenses: ' + f"{totalExpenses:,}" + u'\u20B9'
+                                            st.write(expensestext)
+                                        with balanceText.container():
+                                            balanceT = 'Balance: ' + f"{(totalIncome - totalExpenses):,}" + u'\u20B9'
+                                            st.write(balanceT)
+                                        with commentText.container():
+                                            st.write("Comments: ", comment)
 
 
-                    #             else:
-                    #                 insert_period(period, incomes, expenses,comment, email, "new",0)
-                    #             time.sleep(1)
+                                else:
+                                    insert_period(period, incomes, expenses,comment, email, "new",0)
 
-                    #     else:
-                    #         print("KKKKKKKKKKKKKKKKKKKK")
+                        else:
+                            print("KKKKKKKKKKKKKKKKKKKK")
                 if selected == "Data Visualization":
                     st.header("Data Visualization")
                     # Pie chart, where the slices will be ordered and plotted counter-clockwise:
@@ -363,7 +403,7 @@ try:
 
                     # st.pyplot(fig1)
                     
-                    # dataVisualization()
+                    dataVisualization()
                     # pie_chart_data = data['pie_chart']
                     # plt.pie(pie_chart_data['sizes'], labels=pie_chart_data['labels'], colors='#000000')
                     # st.pyplot( plt )
