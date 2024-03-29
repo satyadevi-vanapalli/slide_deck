@@ -75,7 +75,6 @@ def main():
                 # st.write("LL")
                 if email:
                     if validate_email(email):
-                        st.write(get_user_emails())
                         if email not in get_user_emails():
                             if username and validate_username(username):
                                 if username not in get_usernames():
