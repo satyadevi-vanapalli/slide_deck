@@ -15,6 +15,7 @@ import streamlit_authenticator as stauth
 
 
 def get_user_emails():
+    st.cache_data.clear()
     conn = st.connection('mysql', type='sql')
     df = conn.query('SELECT * from users;', ttl=600)
     # st.write(df.to_dict(),"KKK")
@@ -27,6 +28,7 @@ def get_user_emails():
 def updatePassword(email,password):
     #print(email,"EEEEEEEEEEEEEEEEEEEEEEEEEEe")
     try:
+        st.cache_data.clear()
         newPassword = stauth.Hasher([password]).generate()
         sql = "UPDATE users SET password = '{password}' WHERE email = '{email}';".format(password=newPassword[0],email=email)
         conn1 = st.connection('mysql', type='sql')
