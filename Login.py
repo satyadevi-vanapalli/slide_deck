@@ -32,7 +32,6 @@ page_icon = ":money_with_wings:"  # emojis: https://www.webfx.com/tools/emoji-ch
 layout = "centered"
 years = [datetime.today().year - 1, datetime.today().year, datetime.today().year + 1,datetime.today().year + 2]
 months = tuple(calendar.month_name[1:])
-
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -40,8 +39,8 @@ hide_st_style = """
             header {visibility: hidden;}
             </style>
             """
-st.markdown(hide_st_style, unsafe_allow_html=True)
 conn = st.connection('mysql', type='sql')
+
 
 # Replace the chart with several elements:
 def get_data_period(period, username):
@@ -49,12 +48,14 @@ def get_data_period(period, username):
         a = 'SELECT * FROM users WHERE email = "{email}";'.format(email=username)
         df = conn.query(a, ttl=600)
         userId = None
+
         for row in df.itertuples():
             # st.write(row.id)
             userId = row.id
         sql = "SELECT * FROM savings WHERE user_id = {userId} and month_year = '{period}';".format(userId=userId,period=period)
-        data = conn.query(sql, ttl=600)
+        data = conn.query(sql, ttl=0)
         dataInfo = {}
+
         if not data.empty: 
             for se in data.to_dict():
                 dataInfo[se] = data.to_dict()[se][0]
@@ -160,6 +161,7 @@ def ChangeButtonColour(widget_label, font_color, background_color='transparent')
 
 def change_name(name):
     st.session_state['button'] = name
+    
 def dataVisualization():
     Income = ['Salary', 'Other Income']
     amount = [4500, 2500]
@@ -189,6 +191,8 @@ def dataVisualization():
                         height=500, width=600,color_discrete_sequence=colors)
             fig1.update_layout(margin=dict(l=20, r=20, t=30, b=20),font=dict(color='red', size=15))
             st.plotly_chart(fig1, use_container_width=True)
+def disable(b):
+    st.session_state["but_a"] = b
 def fetch_users():
     df = conn.query('SELECT * from users;', ttl=600)
     return df
@@ -257,9 +261,24 @@ try:
                 st.sidebar.subheader(f'Welcome {email}')
                 #print(st.session_state,"??????????????????????",credentials)
                 # st.write(credentials['usernames'][email])
-                resetPassowrd(credentials['usernames'][email]['password'], email)
                 Authenticator.logout('Log Out', 'sidebar')
+                resetPassowrd(credentials['usernames'][email]['password'], email)
+                # col1, col2 = st.columns(2)
+                # with col1:
+                #     Authenticator.logout('Log Out', 'sidebar')
+                # with col2:
+                #     st.sidebar.button('Rest Password')
+                # # st.session_state["but_a"] = False
+                # if 'but_a' not in st.session_state:
+                #     st.session_state['but_a'] = True
 
+                # button = st.button('a',key='but_a',on_click=disable(not st.session_state["but_a"]))
+                # st.write(button,"LLL")
+                # # if button:
+                # #     st.write("true")
+                # # else:
+                # #     st.write("false")
+                # st.write(st.session_state['but_a'])
                 # data = Authenticator.reset_password('Rest Password',"sidebar")
                 
                 st.markdown("""
@@ -291,8 +310,9 @@ try:
                 
                 # value = st.selectbox("Select Month", options, format_func=lambda x: months[x], key="month")
                 col1, col2 = st.columns(2)
-                month = col1.selectbox("Select Month", months, key="months")
-                year = col2.selectbox("Select Year:", years, key="year")
+                month = col1.selectbox("Select Month", months, key="months",index=datetime.now().month
+-1)
+                year = col2.selectbox("Select Year:", years, key="year",index=1)
                 if selected == "Data Entry":
                     
                         
@@ -301,7 +321,6 @@ try:
                     details = pd.DataFrame()
 
                     details = get_data_period(str(year) + "_" + str(month), email)
-                    # st.write("**********************", type(details))
                     # st.write(details.empty,">>>>",not details.empty,details)
                     # st.write(details,"K???<<<",get_data_period(str(year) + "_" + str(month), email), type(details),details.all(), details.empty)
                     # details = []
@@ -390,6 +409,7 @@ try:
                             print("KKKKKKKKKKKKKKKKKKKK")
                 if selected == "Data Visualization":
                     st.header("Data Visualization")
+
                     # Pie chart, where the slices will be ordered and plotted counter-clockwise:
                     # labels = 'Frogs', 'Hogs', 'Dogs', 'Logs'
                     # sizes = [15, 30, 45, 10]
@@ -403,17 +423,7 @@ try:
                     # st.pyplot(fig1)
                     
                     dataVisualization()
-                    # pie_chart_data = data['pie_chart']
-                    # plt.pie(pie_chart_data['sizes'], labels=pie_chart_data['labels'], colors='#000000')
-                    # st.pyplot( plt )
-
-
-
-                    # with st.form("saved_periods"):
-                    #     # period = st.selectbox("Select Period:", get_all_periods())
-                    #     submitted = st.form_submit_button("Plot Period")
-
-
+                    
             elif not authentication_status:
                 with info:
                     st.error('Incorrect Password or username')
@@ -432,17 +442,7 @@ try:
 except Exception as e:
     st.error(e)
 
-
-# def getPeriod():
-#     st.write(st.session_state["month"],">>>>")
-
-
 def generate_key(icon, button_key):
     key_dict = {}
     key_dict[button_key] = icon
     return {'label':button_key,'key':button_key}
-
-
-
-# def getDetails():
-#     #print("ll")
