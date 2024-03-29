@@ -27,7 +27,7 @@ def validate_email(email):
     return False
 def fetch_users():
     df = conn.query('SELECT * from users;', ttl=600)
-
+    st.write(df)
 
 def get_user_emails():
     df = conn.query('SELECT * from users;', ttl=600)
@@ -36,6 +36,7 @@ def get_user_emails():
     for row in df.itertuples():
         # st.write(row,"JJJ")
         emails.append(row.email)
+    print(emails,df)
     return emails
 def validate_username(username):
     pattern = "^[a-zA-Z0-9 ]*$"
@@ -74,6 +75,7 @@ def main():
                 # st.write("LL")
                 if email:
                     if validate_email(email):
+                        st.write(get_user_emails())
                         if email not in get_user_emails():
                             if username and validate_username(username):
                                 if username not in get_usernames():
