@@ -25,11 +25,14 @@ def validate_email(email):
         print(pattern)
         return True
     return False
+
 def fetch_users():
+    st.cache_data.clear()
     df = conn.query('SELECT * from users;', ttl=600)
     st.write(df)
 
 def get_user_emails():
+    st.cache_data.clear()
     df = conn.query('SELECT * from users;', ttl=600)
     # st.write(df.to_dict(),"KKK")
     emails = []
@@ -45,6 +48,7 @@ def validate_username(username):
     return False
 
 def get_usernames():
+    st.cache_data.clear()
     df = conn.query('SELECT * from users;', ttl=600)
     # st.write(df.to_dict())
     usernames = []
@@ -52,6 +56,7 @@ def get_usernames():
         usernames.append(row.userName)
     return usernames
 def main():
+    fetch_users()
     try:
         signUpForm = st.empty()
         with signUpForm.form('signup'):
@@ -93,6 +98,7 @@ def main():
                                                 # conn.query(insert_stmt, data)
                                                     # cu.execute(insert_stmt, data)
                                                     # s.commit()
+                                                st.cache_data.clear()
                                                 conn1 = st.connection('mysql', type='sql')
 
                                                 with conn1.session as s:
