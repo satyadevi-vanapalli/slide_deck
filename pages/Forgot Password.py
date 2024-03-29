@@ -14,7 +14,16 @@ from sqlalchemy.sql import text
 import streamlit_authenticator as stauth
 
 
-
+def get_user_emails():
+    conn = st.connection('mysql', type='sql')
+    df = conn.query('SELECT * from users;', ttl=600)
+    # st.write(df.to_dict(),"KKK")
+    emails = []
+    for row in df.itertuples():
+        # st.write(row,"JJJ")
+        emails.append(row.email)
+    print(emails,df)
+    return emails
 def updatePassword(email,password):
     #print(email,"EEEEEEEEEEEEEEEEEEEEEEEEEEe")
     try:
@@ -56,47 +65,49 @@ forgot_password_form.subheader('Forget password' if 'Form name' not in fields el
 email = forgot_password_form.text_input('Email' if 'Email' not in fields else fields['Email']).lower()
 if forgot_password_form.form_submit_button('Submit' if 'Submit' not in fields else fields['Submit']):
     if len(email) > 0 and validate_email(email):
-        password = generate_random_pw()
-        print(password)
-        # password = 'Satya@3112'
-        updated = updatePassword(email,password)
-        if password and updated:
-            server = smtplib.SMTP('smtp.gmail.com',587)
-            server.starttls()
-            server.login("streamlitsatya@gmail.com", 'nevb ahzo ehby gcrt')
-            msg = 'New Password: ' + password
-            password = msg
-            
+        if email in get_user_emails():
+            password = generate_random_pw()
+            print(password)
+            # password = 'Satya@3112'
+            updated = updatePassword(email,password)
+            if password and updated:
+                server = smtplib.SMTP('smtp.gmail.com',587)
+                server.starttls()
+                server.login("streamlitsatya@gmail.com", 'nevb ahzo ehby gcrt')
+                msg = 'New Password: ' + password
+                password = msg
+                
 
-            message = MIMEMultipart("alternative")
-            message["Subject"] = "multipart test"
-            message["From"] = 'streamlitsatya@gmail.com'
-            message["To"] = email
-#             html = """\
-# <html>
-#   <body>
-#     <p>Hi,<br>
-#       Please find New password:</p>
-#     <p><a href="https://blog.mailtrap.io/2018/09/27/cloud-or-local-smtp-server">SMTP Server for Testing: Cloud-based or Local?</a></p>
-#     <p> Feel free to <strong>let us</strong> know what content would be useful for you!</p>
-#   </body>
-# </html>
-# """       
-            html = """\
-<html>
-  <body>
-    <p>Hi,<br><br><br>
-""" + password + """\
+                message = MIMEMultipart("alternative")
+                message["Subject"] = "multipart test"
+                message["From"] = 'streamlitsatya@gmail.com'
+                message["To"] = email
+    #             html = """\
+    # <html>
+    #   <body>
+    #     <p>Hi,<br>
+    #       Please find New password:</p>
+    #     <p><a href="https://blog.mailtrap.io/2018/09/27/cloud-or-local-smtp-server">SMTP Server for Testing: Cloud-based or Local?</a></p>
+    #     <p> Feel free to <strong>let us</strong> know what content would be useful for you!</p>
+    #   </body>
+    # </html>
+    # """       
+                html = """\
+    <html>
+    <body>
+        <p>Hi,<br><br><br>
+    """ + password + """\
 
-  </body>
-</html>
-"""
-            part2 = MIMEText(html, "html")
-            message.attach(part2)
-            send = server.sendmail('streamlitsatya@gmail.com',email,message.as_string())
-            st.success("Password sent to your email account. Please verify")
+    </body>
+    </html>
+    """
+                part2 = MIMEText(html, "html")
+                message.attach(part2)
+                send = server.sendmail('streamlitsatya@gmail.com',email,message.as_string())
+                st.success("Password sent to your email account. Please verify")
 
-
+        else:
+            st.warning("Email not existing")
     else:
         st.error("Please enter valid email")
 
