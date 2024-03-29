@@ -1,448 +1,704 @@
+import jwt
 import bcrypt
 import streamlit as st
-import streamlit_authenticator as stauth
-# from dependancies import sign_up, fetch_users
-# from dependancies import sign_up, insert_period, get_data_period, updatePassword
+from typing import Optional
+from datetime import datetime, timedelta
+import extra_streamlit_components as stx
 
-import calendar  # Core Python Module
-from datetime import datetime  # Core Python Module
+from .hasher import Hasher
+from .validator import Validator
+from .utils import generate_random_pw
+from .exceptions import CredentialsError, DeprecationError, ForgotError, LoginError, RegisterError, ResetError, UpdateError
 
-import plotly.graph_objects as go  # pip install plotly
-import streamlit as st  # pip install streamlit
-from streamlit_option_menu import option_menu  # pip install streamlit-option-menu
-import time
-
-import streamlit.components.v1 as components
-import matplotlib.pyplot as plt
-
-import plotly.express as px
-import json
-import webbrowser
-
-import pandas as pd
-from sqlalchemy.sql import text
-
-
-# -------------- SETTINGS --------------
-incomes = ["Salary", "Other Income"]
-expenses = ["Rent", "Groceries" , "Other Expenses", "Savings"]
-currency = "Rupees"
-page_title = "Income and Expense Tracker"
-page_icon = ":money_with_wings:"  # emojis: https://www.webfx.com/tools/emoji-cheat-sheet/
-layout = "centered"
-years = [datetime.today().year - 1, datetime.today().year, datetime.today().year + 1,datetime.today().year + 2]
-months = tuple(calendar.month_name[1:])
-hide_st_style = """
-            <style>
-            #MainMenu {visibility: hidden;}
-            footer {visibility: hidden;}
-            header {visibility: hidden;}
-            </style>
-            """
-conn = st.connection('mysql', type='sql')
-
-
-# Replace the chart with several elements:
-def get_data_period(period, username):
-    try:
-        a = 'SELECT * FROM users WHERE email = "{email}";'.format(email=username)
-        df = conn.query(a, ttl=600)
-        userId = None
-
-        for row in df.itertuples():
-            # st.write(row.id)
-            userId = row.id
-        sql = "SELECT * FROM savings WHERE user_id = {userId} and month_year = '{period}';".format(userId=userId,period=period)
-        data = conn.query(sql, ttl=0)
-        dataInfo = {}
-
-        if not data.empty: 
-            for se in data.to_dict():
-                dataInfo[se] = data.to_dict()[se][0]
-            return dataInfo
-    except Exception as e:
-        st.error(e) 
-def insert_period(period, incomes, expenses, comment, email,type, id):
-    try:
-        a = 'SELECT * FROM users WHERE email = "{email}";'.format(email=email)
-        df = conn.query(a, ttl=600)
-        userId = None
-        for row in df.itertuples():
-            userId = row.id
-        if userId:
-            if (type == 'new'):
-                conn1 = st.connection('mysql', type='sql')
-                query = "INSERT INTO savings(salary, other_income, rent, groceries, other_expenses, savings, month_year, user_id, comments)" "VALUES ({salary},{other_income}, {rent}, {groceries}, {other_expenses}, {savings}, '{month_year}', {user_id}, '{comments}');".format(salary=incomes['Salary'],other_income=incomes['Other Income'],rent=expenses['Rent'],groceries=expenses['Groceries'],other_expenses=expenses['Other Expenses'],savings=expenses['Savings'],month_year=period,user_id=userId,comments=comment)
-                # st.write(query)
-                with conn1.session as s:
-                    s.execute(
-                        text(query)
-                    )
-                    s.commit()
-                    st.success("Data saved successfully!")
-            elif type == 'update':
-                print ("ddddddddddd")
-                sql = "UPDATE savings SET salary = {salary}, other_income = {other_income}, rent = {rent}, groceries = {groceries},  other_expenses = {other_expenses}, savings = {savings}, comments = '{comments}' WHERE id = {id};".format(salary=incomes['Salary'],other_income=incomes['Other Income'],rent=expenses['Rent'],groceries=expenses['Groceries'],other_expenses=expenses['Other Expenses'],savings=expenses['Savings'],id=userId,comments=comment)
-                conn1 = st.connection('mysql', type='sql')
-                with conn1.session as s:
-                    s.execute(
-                        text(sql)
-                    )
-                    s.commit()
-                    st.success("Data updated successfully!")
-               
-                return True
-
-    except Exception as e:
-        st.write(e)
-   
-def updatePassword(email,password):
-    #print(email,"EEEEEEEEEEEEEEEEEEEEEEEEEEe")
-    try:
-        newPassword = stauth.Hasher([password]).generate()
-        sql = "UPDATE users SET password = '{password}' WHERE email = '{email}';".format(password=newPassword[0],email=email)
-        conn1 = st.connection('mysql', type='sql')
-        with conn1.session as s:
-            s.execute(
-                text(sql)
-            )
-            s.commit()
-            # st.sidebar.success("Password updated successfully!")
-
-        return True
-    except Exception as e:
-        st.error(e)
-def resetPassowrd(userPwd, email):
-    with st.sidebar.form('reset_password',clear_on_submit=False):
-            st.subheader('Rest Password')
-            password = st.text_input('Current password', placeholder='Current password', type='password', key = 'current_password')
-            new_password = st.text_input('New password', placeholder='New password', type='password', key = 'new_password')
-            new_password_repeat = st.text_input('Repeat password', placeholder='Repeat password', type='password', key = 'repeat_password')
-            
-            
-            if st.form_submit_button('Reset Password'):
-                if not password:
-                    st.error("please enter current password")
-                elif not new_password:
-                    st.error("please enter New password")
-                elif not new_password_repeat:
-                    st.error("please enter Repeat password")
-                elif new_password != new_password_repeat:
-                    st.error('New and current passwords are the same')
-                elif bcrypt.checkpw(password.encode(),userPwd.encode()):
-                    if len(new_password) >= 6:
-                        # st.write( bcrypt.checkpw(password.encode(),userPwd.encode()),"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
-                        update = updatePassword(email,new_password)
-                        if update:
-                            st.success("Password updated successfully")
-                            # st.write(st.session_state.current_password)
-                            # st.session_state.current_password = ''
-                            # st.session_state['new_password'] = ''
-                            # st.session_state['repeat_password'] = ''
-                    else:
-                        st.warning('Password is too Short')
-                else:
-                        st.warning('current Password is not valid')
-
-    
-def ChangeButtonColour(widget_label, font_color, background_color='transparent'):
-    htmlstr = f"""
-        <script>
-            var elements = window.parent.document.querySelectorAll('button');
-            for (var i = 0; i < elements.length; ++i) {{ 
-                if (elements[i].innerText == '{widget_label}') {{ 
-                    elements[i].style.color ='{font_color}';
-                    elements[i].style.background = '{background_color}'
-                }}
-            }}
-        </script>
+class Authenticate:
+    """
+    This class will create login, logout, register user, reset password, forgot password, 
+    forgot username, and modify user details widgets.
+    """
+    def __init__(self, credentials: dict, cookie_name: str, key: str, cookie_expiry_days: float=30.0, 
+        preauthorized: Optional[list]=None, validator: Optional[Validator]=None):
         """
-    components.html(f"{htmlstr}", height=0, width=0)
+        Create a new instance of "Authenticate".
 
-def change_name(name):
-    st.session_state['button'] = name
-    
-def dataVisualization():
-    Income = ['Salary', 'Other Income']
-    amount = [4500, 2500]
-    colors=['blue', 'rosybrown', 'green', 'yellow']
-    income_colors = ['#F8532F',' #ff99ff']
-    cols = st.columns([1, 1],gap='large')
+        Parameters
+        ----------
+        credentials: dict
+            The dictionary of usernames, names, passwords, emails, and other user data.
+        cookie_name: str
+            The name of the JWT cookie stored on the client's browser for passwordless reauthentication.
+        key: str
+            The key to be used to hash the signature of the JWT cookie.
+        cookie_expiry_days: float
+            The number of days before the reauthentication cookie automatically expires on the client's browser.
+        preauthorized: list
+            The list of emails of unregistered users who are authorized to register.
+        validator: Validator
+            A Validator object that checks the validity of the username, name, and email fields.
+        """
+        self.credentials                =   credentials
+        self.credentials['usernames']   =   {key.lower(): value for key, value in credentials['usernames'].items()}
+        self.cookie_name                =   cookie_name
+        self.key                        =   key
+        self.cookie_expiry_days         =   cookie_expiry_days
+        self.preauthorized              =   preauthorized
+        self.cookie_manager             =   stx.CookieManager()
+        self.validator                  =   validator if validator is not None else Validator()
 
-    data = get_data_period(str(year) + "_" + str(month), email)
-
-    if (data):
-        # st.write(data)
-        with cols[0]:
-            incomeLables = ['salary','other income']
-            incomeValues = [data['salary'], data['other_income']]
-            # st.write(incomeLables, incomeValues)
-            fig = px.pie(values=incomeValues, names=incomeLables,
-                        title= 'Income Chart',
-                        height=500, width=600,color_discrete_sequence=income_colors)
-            fig.update_layout(margin=dict(l=20, r=20, t=30, b=20),font=dict(color='red', size=15))
-            st.plotly_chart(fig, use_container_width=True)
-        with cols[1]:
-            # st.write("Expenses Chart")
-            expenseLables = ['rent','groceries', 'other_expenses', 'savings']
-            expenseValues = [data['rent'], data['groceries'], data['other_expenses'], data['savings']]
-            fig1 = px.pie(values=expenseValues, names=expenseLables,
-                        title= 'Expense Chart',
-                        height=500, width=600,color_discrete_sequence=colors)
-            fig1.update_layout(margin=dict(l=20, r=20, t=30, b=20),font=dict(color='red', size=15))
-            st.plotly_chart(fig1, use_container_width=True)
-def disable(b):
-    st.session_state["but_a"] = b
-def fetch_users():
-    df = conn.query('SELECT * from users;', ttl=600)
-    return df
-try:
-    
-    users = fetch_users()
-    emails = []
-    usernames = []
-    passwords = []
-    #print(users,"UUUUUUUUUUUUUUUUU")
-    # for user in users:
-    #     ##print(user,"LLL")
-    #     emails1.append(user[1])
-    #     usernames1.append(user[2])
-    #     passwords1.append(user[3])
-    for user in users.itertuples():
-    #     # ##print(user)
-        emails.append(user.email)
-        usernames.append(user.userName)
-        passwords.append(user.password)
-    # st.write(emails)
-    ##print(emails,":::::::::::")
-    ##print(usernames,"usernames")
-
-    ##print(passwords,"password")
-
-    # ##print(emails1, usernames1, passwords1,">>>>>>>>>>>>>>>>")
-
-    credentials = {'usernames': {}}
-    for index in range(len(emails)):
-        credentials['usernames'][emails[index]] = {'name': usernames[index], 'password': passwords[index]}
-    # st.write(credentials)
-    Authenticator = stauth.Authenticate(credentials, cookie_name='Streamlit', key='abcdef', cookie_expiry_days=4)
-    username, authentication_status, email = Authenticator.login('main')
-    if not authentication_status:
-        c1, c2,c3,c4 = st.columns(4)
-        # c1, c2 = st.columns([.5,1])
-        # col1, col2 = st.beta_columns([.5,1])
-
-
-        # st.write("[Forgot Password](/Forgot_Password)")
-        with c1:
-            st.write('<a href="/Forgot_Password" target="_self" style="color: white">Forgot Password</a>', unsafe_allow_html=True)
-        with c2:
-            st.write('<a href="/Signup" target="_self" style="color: white">Create account</a>', unsafe_allow_html=True)
-    
-    # email, authentication_status, username = Authenticator.login(':green[Login]', 'main')
-    info, info1 = st.columns(2)
-    # st.write('<a href="/Reset_Password" target="_self">Reset Password</a>', unsafe_allow_html=True)
-    # st.write("<a href='#' id='Reset Password'>Reset Password</a>", unsafe_allow_html=True)
-
-    # if st.button("Reset Password"):
-
-    #print(username, authentication_status, email,"LLLLLLLLLLLLLLL", credentials)
-    
-    # if st.session_state["authentication_status"]:
-    #     if Authenticator.reset_password(st.session_state["username"]):
-    #         st.success('Password modified successfully')
+        for username, _ in self.credentials['usernames'].items():
+            if 'logged_in' not in self.credentials['usernames'][username]:
+                self.credentials['usernames'][username]['logged_in'] = False
+            if not Hasher._is_hash(self.credentials['usernames'][username]['password']):
+                self.credentials['usernames'][username]['password'] = Hasher._hash(self.credentials['usernames'][username]['password'])
         
+        if 'name' not in st.session_state:
+            st.session_state['name'] = None
+        if 'authentication_status' not in st.session_state:
+            st.session_state['authentication_status'] = None
+        if 'username' not in st.session_state:
+            st.session_state['username'] = None
+        if 'logout' not in st.session_state:
+            st.session_state['logout'] = None
+        if 'failed_login_attempts' not in st.session_state:
+            st.session_state['failed_login_attempts'] = {}
 
-    # st.write(st.session_state)
-    ##print(usernames,"UUUUUUUUUUUUUUU")
-    if email:
-        if email in emails:
-            if authentication_status:
-                st.sidebar.subheader(f'Welcome {email}')
-                #print(st.session_state,"??????????????????????",credentials)
-                # st.write(credentials['usernames'][email])
-                Authenticator.logout('Log Out', 'sidebar')
-                resetPassowrd(credentials['usernames'][email]['password'], email)
-                # col1, col2 = st.columns(2)
-                # with col1:
-                #     Authenticator.logout('Log Out', 'sidebar')
-                # with col2:
-                #     st.sidebar.button('Rest Password')
-                # # st.session_state["but_a"] = False
-                # if 'but_a' not in st.session_state:
-                #     st.session_state['but_a'] = True
+    def _token_encode(self) -> str:
+        """
+        Encodes the contents of the reauthentication cookie.
 
-                # button = st.button('a',key='but_a',on_click=disable(not st.session_state["but_a"]))
-                # st.write(button,"LLL")
-                # # if button:
-                # #     st.write("true")
-                # # else:
-                # #     st.write("false")
-                # st.write(st.session_state['but_a'])
-                # data = Authenticator.reset_password('Rest Password',"sidebar")
-                
-                st.markdown("""
-    <style>
+        Returns
+        -------
+        str
+            The JWT cookie for passwordless reauthentication.
+        """
+        return jwt.encode({'username': st.session_state['username'],
+            'exp_date': self.exp_date}, self.key, algorithm='HS256')
 
-        .st-emotion-cache-79elbk {
-            visibility:hidden !important;
-            height:0px;
-        }
-        .st-emotion-cache-1y4p8pa {
-                            padding-top:0px !important;
-        }
+    def _token_decode(self) -> str:
+        """
+        Decodes the contents of the reauthentication cookie.
 
-    </style>""", unsafe_allow_html=True)
+        Returns
+        -------
+        str
+            The decoded JWT cookie for passwordless reauthentication.
+        """
+        try:
+            return jwt.decode(self.token, self.key, algorithms=['HS256'])
+        except:
+            return False
 
-                st.title(page_title + " " + page_icon)
+    def _set_exp_date(self) -> str:
+        """
+        Creates the reauthentication cookie's expiry date.
 
-                # --- NAVIGATION MENU ---
-                selected = option_menu(
-                    menu_title=None,
-                    options=["Data Entry", "Data Visualization"],
-                    icons=["pencil-fill", "bar-chart-fill"],  # https://icons.getbootstrap.com/
-                    orientation="horizontal",
-                )
-                
+        Returns
+        -------
+        str
+            The JWT cookie's expiry timestamp in Unix epoch.
+        """
+        return (datetime.utcnow() + timedelta(days=self.cookie_expiry_days)).timestamp()
 
-                options = list(range(len(months)))
-                # st.write( months)
-                
-                # value = st.selectbox("Select Month", options, format_func=lambda x: months[x], key="month")
-                col1, col2 = st.columns(2)
-                month = col1.selectbox("Select Month", months, key="months",index=datetime.now().month
--1)
-                year = col2.selectbox("Select Year:", years, key="year",index=1)
-                if selected == "Data Entry":
-                    
-                        
-                    st.header(f"Data Entry in {currency}")
-                    # details = None
-                    details = pd.DataFrame()
+    def _check_pw(self) -> bool:
+        """
+        Checks the validity of the entered password.
 
-                    details = get_data_period(str(year) + "_" + str(month), email)
-                    # st.write(details.empty,">>>>",not details.empty,details)
-                    # st.write(details,"K???<<<",get_data_period(str(year) + "_" + str(month), email), type(details),details.all(), details.empty)
-                    # details = []
-                    # if details.empty:
-                    #     st.write("eeeeeeeeeeeeeeeeeee")
-                    # else:
-                    #     st.write("GGGGGGGGGGGGGGGGGGG")
-                    if details and len(details.keys()) > 0:
-                        details['Salary'] = details['salary']
-                        details['Other Income'] = details['other_income']
-                        details['other expenses'] = details['other_expenses']
-                        totalIncome = details['salary'] + details['other_income']
-                        totalExpenses = details['rent'] + details['groceries'] + details['other_expenses'] + details['savings']
-                        # st.write('Total Income: ', f"{totalIncome:,}", u'\u20B9')
-                        # st.write('Total Expenses: ', f"{totalExpenses:,}", u'\u20B9')
-                        # st.write('Balance: ', f"{(totalIncome - totalExpenses):,}", u'\u20B9')
-                        # st.write("Comments: ", details['comments'])
-                        totalIncomeText = st.empty()
-                        totalExpensesText = st.empty()
-                        balanceText = st.empty()
-                        commentText = st.empty()
-                        Incometext = 'Total Income: ' + f"{totalIncome:,}" + u'\u20B9'
-                        expensestext = 'Total Expenses: ' + f"{totalExpenses:,}" + u'\u20B9'
-                        commentT = "Comments: " + details['comments']
-                        balanceT = 'Balance: ' + f"{(totalIncome - totalExpenses):,}" + u'\u20B9'
-                        # Replace the placeholder with some text:
-                        totalIncomeText.write(Incometext)
-                        totalExpensesText.write(expensestext)
-                        balanceText.write(balanceT)
-                        commentText.write(commentT)
+        Returns
+        -------
+        bool
+            The validity of the entered password by comparing it to the hashed password on disk.
+        """
+        return bcrypt.checkpw(self.password.encode(), 
+            self.credentials['usernames'][self.username]['password'].encode())
 
-                    with st.form("entry_form"):
-                        if details and len(details.keys()) > 0:
-                            with st.expander("Income", expanded=True):
-                                for income in incomes:
-                                    ##print(income)
-                                    st.number_input(f"{income}:", min_value=0, format="%i", step=10, key=income, value=details[income])
-
-                            with st.expander("Expenses", expanded=True):
-                                for expense in expenses:
-                                    st.number_input(f"{expense}:", min_value=0, format="%i", step=10, key=expense, value=details[expense.lower()])
-                            with st.expander("Comment", expanded=True):
-                                comment = st.text_area("",value=details['comments'], placeholder="Enter a comment here ...")
-                        else:
-                            with st.expander("Income"):
-                                for income in incomes:
-                                    st.number_input(f"{income}:", min_value=0, format="%i", step=10, key=income)
-                            with st.expander("Expenses"):
-                                for expense in expenses:
-                                    st.number_input(f"{expense}:", min_value=0, format="%i", step=10, key=expense)
-                            with st.expander("Comment"):
-                                comment = st.text_area("", placeholder="Enter a comment here ...")
-
-                        "---"
-                        submitted = False
-                        submitted = st.form_submit_button("Update Entry") if (details and len(details.keys()) > 0) else st.form_submit_button("Add Entry")
-                        if submitted:
-                            with st.spinner('Wait for it...'):
-                                # st.write(st.session_state)
-                                period = str(year) + "_" + str(month)
-                                incomes = {income: st.session_state[income] for income in incomes}
-                                expenses = {expense: st.session_state[expense] for expense in expenses}
-
-                                if details: 
-                                    updated = insert_period(period, incomes, expenses,comment, email, "update", details['id'])
-                                    if updated:
-                                        with totalIncomeText.container():
-                                            totalIncome = st.session_state['Salary'] + st.session_state['Other Income']
-                                            text = 'Total Income: ' + f"{totalIncome:,}" + u'\u20B9'
-                                            st.write(text)
-                                        with totalExpensesText.container():                                        
-                                            totalExpenses = st.session_state['Rent'] + st.session_state['Groceries'] + st.session_state['Other Expenses'] + st.session_state['Savings']
-                                            expensestext = 'Total Expenses: ' + f"{totalExpenses:,}" + u'\u20B9'
-                                            st.write(expensestext)
-                                        with balanceText.container():
-                                            balanceT = 'Balance: ' + f"{(totalIncome - totalExpenses):,}" + u'\u20B9'
-                                            st.write(balanceT)
-                                        with commentText.container():
-                                            st.write("Comments: ", comment)
-
-
-                                else:
-                                    insert_period(period, incomes, expenses,comment, email, "new",0)
-
-                        else:
-                            print("KKKKKKKKKKKKKKKKKKKK")
-                if selected == "Data Visualization":
-                    st.header("Data Visualization")
-
-                    # Pie chart, where the slices will be ordered and plotted counter-clockwise:
-                    # labels = 'Frogs', 'Hogs', 'Dogs', 'Logs'
-                    # sizes = [15, 30, 45, 10]
-                    # explode = (0, 0.1, 0, 0)  # only "explode" the 2nd slice (i.e. 'Hogs')
-
-                    # fig1, ax1 = plt.subplots()
-                    # ax1.pie(sizes, explode=explode, labels=labels, autopct='%1.1f%%',
-                    #         shadow=True, startangle=90)
-                    # ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
-
-                    # st.pyplot(fig1)
-                    
-                    dataVisualization()
-                    
-            elif not authentication_status:
-                with info:
-                    st.error('Incorrect Password or username')
-            else:
-                with info:
-                    st.warning('Please feed in your credentials')
+    def _check_cookie(self):
+        """
+        Checks the validity of the reauthentication cookie.
+        """
+        self.token = self.cookie_manager.get(self.cookie_name)
+        if self.token is not None:
+            self.token = self._token_decode()
+            if self.token is not False:
+                if not st.session_state['logout']:
+                    if self.token['exp_date'] > datetime.utcnow().timestamp():
+                        if 'username' in self.token:
+                            st.session_state['username'] = self.token['username']
+                            st.session_state['name'] = self.credentials['usernames'][self.token['username']]['name']
+                            st.session_state['authentication_status'] = True
+                            self.credentials['usernames'][self.token['username']]['logged_in'] = True
+    
+    def _record_failed_login_attempts(self, reset: bool=False):
+        """
+        Records the number of failed login attempts for a given username.
+        
+        Parameters
+        ----------
+        reset: bool            
+            The reset failed login attempts option, True: number of failed login attempts for the user will be reset to 0, 
+            False: number of failed login attempts for the user will be incremented.
+        """
+        if self.username not in st.session_state['failed_login_attempts']:
+            st.session_state['failed_login_attempts'][self.username] = 0
+        if reset:
+            st.session_state['failed_login_attempts'][self.username] = 0
         else:
-            with info:
-                st.warning('Username does not exist, Please Sign up')
+            st.session_state['failed_login_attempts'][self.username] += 1
+            
+    def _check_credentials(self, inplace: bool=True) -> bool:
+        """
+        Checks the validity of the entered credentials.
 
+        Parameters
+        ----------
+        inplace: bool
+            Inplace setting, True: authentication status will be stored in session state, 
+            False: authentication status will be returned as bool.
 
+        Returns
+        -------
+        bool
+            Validity of entered credentials.
+        """
+        if isinstance(self.max_concurrent_users, int):
+            if self._count_concurrent_users() > self.max_concurrent_users - 1:
+                raise(LoginError('Maximum number of concurrent users exceeded'))
+        if self.username in self.credentials['usernames']:
+            try:
+                if self._check_pw():
+                    if inplace:
+                        st.session_state['name'] = self.credentials['usernames'][self.username]['name']
+                        self.exp_date = self._set_exp_date()
+                        self.token = self._token_encode()
+                        self.cookie_manager.set(self.cookie_name, self.token,
+                            expires_at=datetime.now() + timedelta(days=self.cookie_expiry_days))
+                        st.session_state['authentication_status'] = True
+                    else:
+                        return True
+                    self._record_failed_login_attempts(reset=True)
+                    self.credentials['usernames'][self.username]['logged_in'] = True
+                else:
+                    if inplace:
+                        st.session_state['authentication_status'] = False
+                    else:
+                        return False
+                    self._record_failed_login_attempts()
+            except Exception as e:
+                print(e)
+        else:
+            if inplace:
+                st.session_state['authentication_status'] = False
+            else:
+                return False
+            self._record_failed_login_attempts()
 
+    def _count_concurrent_users(self):
+        """
+        Counts the number of users logged in concurrently.
 
+        Returns
+        -------
+        int
+            Number of users logged in concurrently.
+        """
+        concurrent_users = 0
+        for username, _ in self.credentials['usernames'].items():
+            if self.credentials['usernames'][username]['logged_in']:
+                concurrent_users += 1
+        return concurrent_users
 
+    def login(self, location: str='main', max_concurrent_users: Optional[int]=None, fields: dict={'Form name':'Login', 
+                                                                                                  'Username':'Username', 
+                                                                                                  'Password':'Password',
+                                                                                                  'Login':'Login'}) -> tuple:
+        """
+        Creates a login widget.
 
-except Exception as e:
-    st.error(e)
+        Parameters
+        ----------
+        location: str
+            The location of the login widget i.e. main or sidebar.
+        max_concurrent_users: int
+            The number of maximum users allowed to login concurrently.
+        fields: dict
+            The rendered names of the fields/buttons.
 
-def generate_key(icon, button_key):
-    key_dict = {}
-    key_dict[button_key] = icon
-    return {'label':button_key,'key':button_key}
+        Returns
+        -------
+        str
+            Name of the authenticated user.
+        bool
+            The status of authentication, None: no credentials entered, 
+            False: incorrect credentials, True: correct credentials.
+        str
+            Username of the authenticated user.
+        """
+        print("+++++++++++++++++++++++++++++++++++++")
+        self.max_concurrent_users = max_concurrent_users
+
+        if location not in ['main', 'sidebar']:
+            # Temporary deprecation error to be displayed until later releases
+            raise DeprecationError("""Likely deprecation error, the 'form_name' parameter has been replaced
+                                   with the 'fields' parameter. For further information please refer to 
+                                   https://github.com/mkhorasani/Streamlit-Authenticator/tree/main?tab=readme-ov-file#authenticatelogin""")
+            # raise ValueError("Location must be one of 'main' or 'sidebar'") 
+        if not st.session_state['authentication_status']:
+            self._check_cookie()
+            if not st.session_state['authentication_status']:
+                if location == 'main':
+                    login_form = st.form('Login')
+                elif location == 'sidebar':
+                    login_form = st.sidebar.form('Login')
+                login_form.subheader('Login' if 'Form name' not in fields else fields['Form name'])
+                self.username = login_form.text_input('Username' if 'Username' not in fields else fields['Username']).lower()
+                st.session_state['username'] = self.username
+                self.password = login_form.text_input('Password' if 'Password' not in fields else fields['Password'],
+                                                       type='password')
+
+                if login_form.form_submit_button('Login' if 'Login' not in fields else fields['Login']):
+                    self._check_credentials()
+
+        return st.session_state['name'], st.session_state['authentication_status'], st.session_state['username']
+
+    def _implement_logout(self):
+        """
+        Clears cookie and session state variables associated with the logged in user.
+        """
+        self.cookie_manager.delete(self.cookie_name)
+        self.credentials['usernames'][st.session_state['username']]['logged_in'] = False
+        st.session_state['logout'] = True
+        st.session_state['name'] = None
+        st.session_state['username'] = None
+        st.session_state['authentication_status'] = None
+
+    def logout(self, button_name: str='Logout', location: str='main', key: Optional[str]=None):
+        """
+        Creates a logout button.
+
+        Parameters
+        ----------
+        button_name: str
+            The rendered name of the logout button.
+        location: str
+            The location of the logout button i.e. main or sidebar or unrendered.
+        key: str
+            A unique key to be used in multipage applications.
+        """
+        if location not in ['main', 'sidebar','unrendered']:
+            raise ValueError("Location must be one of 'main' or 'sidebar' or 'unrendered'")
+        if location == 'main':
+            if st.button(button_name, key):
+                self._implement_logout()
+        elif location == 'sidebar':
+            if st.sidebar.button(button_name, key):
+                self._implement_logout()
+        elif location == 'unrendered':
+            if st.session_state['authentication_status']:
+                self._implement_logout()
+
+    def _update_password(self, username: str, password: str):
+        """
+        Updates credentials dictionary with user's reset hashed password.
+
+        Parameters
+        ----------
+        username: str
+            The username of the user to update the password for.
+        password: str
+            The updated plain text password.
+        """
+        self.credentials['usernames'][username]['password'] = Hasher([password]).generate()[0]
+
+    def reset_password(self, username: str, location: str='main', fields: dict={'Form name':'Reset password', 
+                                                                                'Current password':'Current password', 
+                                                                                'New password':'New password',
+                                                                                'Repeat password':'Repeat password',
+                                                                                'Reset':'Reset'} ) -> bool:
+        """
+        Creates a password reset widget.
+
+        Parameters
+        ----------
+        username: str
+            The username of the user to reset the password for.
+        location: str
+            The location of the password reset widget i.e. main or sidebar.
+        fields: dict
+            The rendered names of the fields/buttons.
+
+        Returns
+        -------
+        bool
+            The status of resetting the password.
+        """
+        if location not in ['main', 'sidebar']:
+            # Temporary deprecation error to be displayed until later releases
+            raise DeprecationError("""Likely deprecation error, the 'form_name' parameter has been replaced
+                                   with the 'fields' parameter. For further information please refer to 
+                                   https://github.com/mkhorasani/Streamlit-Authenticator/tree/main?tab=readme-ov-file#authenticatereset_password""")
+            # raise ValueError("Location must be one of 'main' or 'sidebar'") 
+        if location == 'main':
+            reset_password_form = st.form('Reset password')
+        elif location == 'sidebar':
+            reset_password_form = st.sidebar.form('Reset password')
+        
+        reset_password_form.subheader('Reset password' if 'Form name' not in fields else fields['Form name'])
+        self.username = username.lower()
+        self.password = reset_password_form.text_input('Current password' if 'Current password' not in fields else fields['Current password'], 
+                                                       type='password')
+        new_password = reset_password_form.text_input('New password' if 'New password' not in fields else fields['New password'], 
+                                                      type='password')
+        new_password_repeat = reset_password_form.text_input('Repeat password' if 'Repeat password' not in fields else fields['Repeat password'], 
+                                                             type='password')
+
+        if reset_password_form.form_submit_button('Reset' if 'Reset' not in fields else fields['Reset']):
+            if self._check_credentials(inplace=False):
+                if len(new_password) == 0:
+                    raise ResetError('No new password provided')
+                if new_password != new_password_repeat:
+                    raise ResetError('Passwords do not match')
+                if self.password != new_password: 
+                    self._update_password(self.username, new_password)
+                    return True
+                else:
+                    raise ResetError('New and current passwords are the same')                                            
+            else:
+                raise CredentialsError('password')
+    
+    def _credentials_contains_value(self, value):
+        """
+        Checks to see if a value is present in the credentials dictionary.
+
+        Parameters
+        ----------
+        value: str
+            The value being checked.
+
+        Returns
+        -------
+        bool
+            The presence/absence of the value, True: value present, False value absent.
+        """
+        return any(value in d.values() for d in self.credentials['usernames'].values())
+
+    def _register_credentials(self, username: str, name: str, password: str, email: str, preauthorization: bool,
+                               domains: list):
+        """
+        Adds to credentials dictionary the new user's information.
+
+        Parameters
+        ----------
+        username: str
+            The username of the new user.
+        name: str
+            The name of the new user.
+        password: str
+            The password of the new user.
+        email: str
+            The email of the new user.
+        preauthorization: bool
+            The preauthorization requirement, True: user must be preauthorized to register, 
+            False: any user can register.
+        domains: list
+            The required list of domains a new email must belong to i.e. ['gmail.com', 'yahoo.com'], 
+            list: the required list of domains, None: any domain is allowed.
+        """
+        if not self.validator.validate_email(email):
+            raise RegisterError('Email is not valid')
+        if self._credentials_contains_value(email):
+            raise RegisterError('Email already taken')
+        if domains:
+            if email.split('@')[1] not in ' '.join(domains):
+                raise RegisterError('Email not allowed to register')
+        if not self.validator.validate_username(username):
+            raise RegisterError('Username is not valid')
+        if username in self.credentials['usernames']:
+            raise RegisterError('Username already taken')
+        if not self.validator.validate_name(name):
+            raise RegisterError('Name is not valid')
+        self.credentials['usernames'][username] = {'name': name, 'password': Hasher([password]).generate()[0], 
+                                                   'email': email, 'logged_in': False}
+        if preauthorization:
+            self.preauthorized['emails'].remove(email)
+
+    def register_user(self, location: str='main', preauthorization: bool=True, domains: Optional[list]=None, 
+                      fields: dict={'Form name':'Register User', 
+                                    'Email':'Email', 
+                                    'Username':'Username', 
+                                    'Password':'Password', 
+                                    'Repeat password':'Repeat password',
+                                    'Register':'Register'}) -> bool:
+        """
+        Creates a register new user widget.
+
+        Parameters
+        ----------
+        location: str
+            The location of the register new user widget i.e. main or sidebar.
+        preauthorization: bool
+            The preauthorization requirement, True: user must be preauthorized to register, 
+            False: any user can register.
+        domains: list
+            The required list of domains a new email must belong to i.e. ['gmail.com', 'yahoo.com'], 
+            list: the required list of domains, None: any domain is allowed.
+        fields: dict
+            The rendered names of the fields/buttons.
+
+        Returns
+        -------
+        str
+            Email associated with the new user.
+        str
+            Username associated with the new user.
+        str
+            Name associated with the new user.
+        """
+        if preauthorization:
+            if not self.preauthorized:
+                raise ValueError("preauthorization argument must not be None")
+        if location not in ['main', 'sidebar']:
+            # Temporary deprecation error to be displayed until later releases
+            raise DeprecationError("""Likely deprecation error, the 'form_name' parameter has been replaced
+                                   with the 'fields' parameter. For further information please refer to 
+                                   https://github.com/mkhorasani/Streamlit-Authenticator/tree/main?tab=readme-ov-file#authenticateregister_user""")
+            # raise ValueError("Location must be one of 'main' or 'sidebar'") 
+        if location == 'main':
+            register_user_form = st.form('Register user')
+        elif location == 'sidebar':
+            register_user_form = st.sidebar.form('Register user')
+
+        register_user_form.subheader('Register User' if 'Form name' not in fields else fields['Form name'])
+        new_email = register_user_form.text_input('Email' if 'Email' not in fields else fields['Email'])
+        new_username = register_user_form.text_input('Username' if 'Username' not in fields else fields['Username']).lower()
+        new_name = register_user_form.text_input('Name' if 'Name' not in fields else fields['Name'])
+        new_password = register_user_form.text_input('Password' if 'Password' not in fields else fields['Password'], type='password')
+        new_password_repeat = register_user_form.text_input('Repeat password' if 'Repeat password' not in fields else fields['Repeat password'],
+                                                             type='password')
+        
+        if register_user_form.form_submit_button('Register' if 'Register' not in fields else fields['Register']):
+            if len(new_password) == 0 or len(new_password_repeat) == 0:
+                raise RegisterError('Password/repeat password fields cannot be empty')
+            if new_password != new_password_repeat:
+                raise RegisterError('Passwords do not match')
+            if preauthorization:
+                if new_email in self.preauthorized['emails']:
+                    self._register_credentials(new_username, new_name, new_password, new_email, 
+                                               preauthorization, domains)
+                    return new_email, new_username, new_name
+                else:
+                    raise RegisterError('User not preauthorized to register')
+            else:
+                self._register_credentials(new_username, new_name, new_password, new_email, 
+                                           preauthorization, domains)
+                return new_email, new_username, new_name
+        return None, None, None                                                               
+
+    def _set_random_password(self, username: str) -> str:
+        """
+        Updates credentials dictionary with user's hashed random password.
+
+        Parameters
+        ----------
+        username: str
+            Username of user to set random password for.
+
+        Returns
+        -------
+        str
+            New plain text password that should be transferred to user securely.
+        """
+        self.random_password = generate_random_pw()
+        self.credentials['usernames'][username]['password'] = Hasher([self.random_password]).generate()[0]
+        return self.random_password
+
+    def forgot_password(self, location: str='main', fields: dict={'Form name':'Forgot password', 
+                                                                  'Username':'Username', 
+                                                                  'Submit':'Submit'}, ) -> tuple:
+        """
+        Creates a forgot password widget.
+
+        Parameters
+        ----------
+        location: str
+            The location of the forgot password widget i.e. main or sidebar.
+        fields: dict
+            The rendered names of the fields/buttons.
+
+        Returns
+        -------
+        str
+            Username associated with the forgotten password.
+        str
+            Email associated with the forgotten password.
+        str
+            New plain text password that should be transferred to the user securely.
+        """
+        if location not in ['main', 'sidebar']:
+            # Temporary deprecation error to be displayed until later releases
+            raise DeprecationError("""Likely deprecation error, the 'form_name' parameter has been replaced
+                                   with the 'fields' parameter. For further information please refer to 
+                                   https://github.com/mkhorasani/Streamlit-Authenticator/tree/main?tab=readme-ov-file#authenticateforgot_password""")
+            # raise ValueError("Location must be one of 'main' or 'sidebar'") 
+        if location == 'main':
+            forgot_password_form = st.form('Forgot password')
+        elif location == 'sidebar':
+            forgot_password_form = st.sidebar.form('Forgot password')
+
+        forgot_password_form.subheader('Forget password' if 'Form name' not in fields else fields['Form name'])
+        username = forgot_password_form.text_input('Username' if 'Username' not in fields else fields['Username']).lower()
+
+        if forgot_password_form.form_submit_button('Submit' if 'Submit' not in fields else fields['Submit']):
+            if len(username) > 0:
+                if username in self.credentials['usernames']:
+                    return username, self.credentials['usernames'][username]['email'], self._set_random_password(username)
+                else:
+                    return False, None, None
+            else:
+                raise ForgotError('Username not provided')
+        return None, None, None
+
+    def _get_username(self, key: str, value: str) -> str:
+        """
+        Retrieves username based on a provided entry.
+
+        Parameters
+        ----------
+        key: str
+            Name of the credential to query i.e. "email".
+        value: str
+            Value of the queried credential i.e. "jsmith@gmail.com".
+
+        Returns
+        -------
+        str
+            Username associated with given key, value pair i.e. "jsmith".
+        """
+        for username, values in self.credentials['usernames'].items():
+            if values[key] == value:
+                return username
+        return False
+
+    def forgot_username(self, location: str='main', fields: dict={'Form name':'Forgot username', 
+                                                                  'Email':'Email', 
+                                                                  'Submit':'Submit'}) -> tuple:
+        """
+        Creates a forgot username widget.
+
+        Parameters
+        ----------
+        location: str
+            The location of the forgot username widget i.e. main or sidebar.
+        fields: dict
+            The rendered names of the fields/buttons.
+
+        Returns
+        -------
+        str
+            Forgotten username that should be transferred to user securely.
+        str
+            Email associated with forgotten username.
+        """
+        if location not in ['main', 'sidebar']:
+            # Temporary deprecation error to be displayed until later releases
+            raise DeprecationError("""Likely deprecation error, the 'form_name' parameter has been replaced
+                                   with the 'fields' parameter. For further information please refer to 
+                                   https://github.com/mkhorasani/Streamlit-Authenticator/tree/main?tab=readme-ov-file#authenticateforgot_username""")
+            # raise ValueError("Location must be one of 'main' or 'sidebar'") 
+        if location == 'main':
+            forgot_username_form = st.form('Forgot username')
+        elif location == 'sidebar':
+            forgot_username_form = st.sidebar.form('Forgot username')
+
+        forgot_username_form.subheader('Forget username' if 'Form name' not in fields else fields['Form name'])
+        email = forgot_username_form.text_input('Email' if 'Email' not in fields else fields['Email'])
+
+        if forgot_username_form.form_submit_button('Submit' if 'Submit' not in fields else fields['Submit']):
+            if len(email) > 0:
+                return self._get_username('email', email), email
+            else:
+                raise ForgotError('Email not provided')
+        return None, email
+
+    def _update_entry(self, username: str, key: str, value: str):
+        """
+        Updates credentials dictionary with user's updated entry.
+
+        Parameters
+        ----------
+        username: str
+            The username of the user to update the entry for.
+        key: str
+            The updated entry key i.e. "email".
+        value: str
+            The updated entry value i.e. "jsmith@gmail.com".
+        """
+        self.credentials['usernames'][username][key] = value
+
+    def update_user_details(self, username: str, location: str='main', fields: dict={'Form name':'Update user details',
+                                                                                     'Field':'Field',
+                                                                                     'Name':'Name', 
+                                                                                     'Email':'Email', 
+                                                                                     'New value':'New value', 
+                                                                                     'Update':'Update'}) -> bool:
+        """
+        Creates a update user details widget.
+
+        Parameters
+        ----------
+        username: str
+            The username of the user to update user details for.
+        location: str
+            The location of the update user details widget i.e. main or sidebar.
+        fields: dict
+            The rendered names of the fields/buttons.
+
+        Returns
+        -------
+        bool
+            The status of updating the user details.
+        """
+        if location not in ['main', 'sidebar']:
+            # Temporary deprecation error to be displayed until later releases
+            raise DeprecationError("""Likely deprecation error, the 'form_name' parameter has been replaced
+                                   with the 'fields' parameter. For further information please refer to 
+                                   https://github.com/mkhorasani/Streamlit-Authenticator/tree/main?tab=readme-ov-file#authenticateupdate_user_details""")
+            # raise ValueError("Location must be one of 'main' or 'sidebar'") 
+        if location == 'main':
+            update_user_details_form = st.form('Update user details')
+        elif location == 'sidebar':
+            update_user_details_form = st.sidebar.form('Update user details')
+        
+        update_user_details_form.subheader('Update user details' if 'Form name' not in fields else fields['Form name'])
+        self.username = username.lower()
+        update_user_details_form_fields = ['Name' if 'Name' not in fields else fields['Name'],
+                                           'Email' if 'Email' not in fields else fields['Email']]
+        field = update_user_details_form.selectbox('Field' if 'Field' not in fields else fields['Field'], 
+                                                   update_user_details_form_fields)
+        new_value = update_user_details_form.text_input('New value' if 'New value' not in fields else fields['New value'])
+
+        if update_user_details_form_fields.index(field) == 0:
+            field = 'name'
+        elif update_user_details_form_fields.index(field) == 1:
+            field = 'email'
+
+        if update_user_details_form.form_submit_button('Update' if 'Update' not in fields else fields['Update']):
+            if len(new_value) > 0:
+                if field == 'name':
+                    if not self.validator.validate_name(new_value):
+                        raise UpdateError('Name is not valid')
+                if field == 'email':
+                    if not self.validator.validate_email(new_value):
+                        raise UpdateError('Email is not valid')
+                    if self._credentials_contains_value(new_value):
+                        raise UpdateError('Email already taken')
+                if new_value != self.credentials['usernames'][self.username][field]:
+                    self._update_entry(self.username, field, new_value)
+                    if field == 'name':
+                            st.session_state['name'] = new_value
+                            self.exp_date = self._set_exp_date()
+                            self.token = self._token_encode()
+                            self.cookie_manager.set(self.cookie_name, self.token,
+                            expires_at=datetime.now() + timedelta(days=self.cookie_expiry_days))
+                    return True
+                else:
+                    raise UpdateError('New and current values are the same')
+            if len(new_value) == 0:
+                raise UpdateError('New value not provided')
