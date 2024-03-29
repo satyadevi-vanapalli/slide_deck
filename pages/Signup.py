@@ -29,7 +29,7 @@ def validate_email(email):
 def fetch_users():
     st.cache_data.clear()
     df = conn.query('SELECT * from users;', ttl=600)
-    st.write(df)
+    # st.write(df)
 
 def get_user_emails():
     st.cache_data.clear()
