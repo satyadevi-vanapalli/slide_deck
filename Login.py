@@ -39,12 +39,14 @@ hide_st_style = """
             header {visibility: hidden;}
             </style>
             """
+
 conn = st.connection('mysql', type='sql')
 
 
 # Replace the chart with several elements:
 def get_data_period(period, username):
     try:
+        st.cache_data.clear()
         a = 'SELECT * FROM users WHERE email = "{email}";'.format(email=username)
         df = conn.query(a, ttl=600)
         userId = None
@@ -64,6 +66,7 @@ def get_data_period(period, username):
         st.error(e) 
 def insert_period(period, incomes, expenses, comment, email,type, id):
     try:
+        st.cache_data.clear()
         a = 'SELECT * FROM users WHERE email = "{email}";'.format(email=email)
         df = conn.query(a, ttl=600)
         userId = None
@@ -99,6 +102,7 @@ def insert_period(period, incomes, expenses, comment, email,type, id):
 def updatePassword(email,password):
     #print(email,"EEEEEEEEEEEEEEEEEEEEEEEEEEe")
     try:
+        st.cache_data.clear()
         newPassword = stauth.Hasher([password]).generate()
         sql = "UPDATE users SET password = '{password}' WHERE email = '{email}';".format(password=newPassword[0],email=email)
         conn1 = st.connection('mysql', type='sql')
@@ -194,6 +198,7 @@ def dataVisualization():
 def disable(b):
     st.session_state["but_a"] = b
 def fetch_users():
+    st.cache_data.clear()
     df = conn.query('SELECT * from users;', ttl=600)
     return df
 try:
